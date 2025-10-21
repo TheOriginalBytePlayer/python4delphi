@@ -21,7 +21,7 @@ uses
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs,
   FMX.Controls.Presentation, FMX.ScrollBox, FMX.Memo, FMX.StdCtrls,
   FMX.Memo.Types, FMX.ListBox, FMX.Objects,
-  PythonEngine, VarPyth, FMX.Media;
+  PythonEngine, VarPyth, FMX.Media, WrapOpenCVCamera;
 
 type
   TfrmMain = class(TForm)
@@ -39,6 +39,8 @@ type
     Label3: TLabel;
     CameraComponent1: TCameraComponent;
     LoadTimer: TTimer;
+    OpenCVCamera1: TOpenCVCamera;
+    chkUseOpenCV: TCheckBox;
     procedure btnLoadScriptClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -47,13 +49,19 @@ type
         TMediaTime);
     procedure FormShow(Sender: TObject);
     procedure PythonInputOutputSendUniData(Sender: TObject; const Data: string);
+    procedure chkUseOpenCVChange(Sender: TObject);
+    procedure LoadTimerTimer(Sender: TObject);
   private
     { Private declarations }
     FScriptLoaded: Boolean;
+    FUseOpenCV: Boolean;
+    FOpenCVTimer: TTimer;
     InterimBitmap:TBitmap;
     procedure LoadPythonScript;
     function BitmapToRGBBytes(ABitmap: TBitmap): TBytes;
     procedure ProcessFrameWithMediaPipe;
+    procedure SwitchCamera;
+    procedure ProcessOpenCVFrame;
   public
     { Public declarations }
   end;
@@ -70,11 +78,21 @@ uses
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
+  FUseOpenCV := False;
+  FOpenCVTimer := nil;
 end;
 
 { --- Ensure proper cleanup on form destroy --- }
 procedure TfrmMain.FormDestroy(Sender: TObject);
 begin
+  // Stop cameras
+  if CameraComponent1.Active then
+    CameraComponent1.Active := False;
+  if OpenCVCamera1.Active then
+    OpenCVCamera1.Active := False;
+  if Assigned(FOpenCVTimer) then
+    FreeAndNil(FOpenCVTimer);
+    
   if FScriptLoaded then
   begin
     try
@@ -137,13 +155,34 @@ begin
     memoOutput.Lines.Add('MediaPipe script loaded and initialized.');
     memoOutput.Lines.Add('MediaPipe Hands initialized.');
     memoOutput.Lines.Add('Ready to process frames.');
-    //InterimBitmap
-    var CaptureSetting:=CameraComponent1.CaptureSetting;
-    CaptureSetting.Width:=640;
-    CaptureSetting.Height:=480;
-    CameraComponent1.SetCaptureSetting(CaptureSetting);
-    ImageControl1.Bitmap.SetSize(CameraComponent1.CaptureSetting.Width,CameraComponent1.CaptureSetting.Height);
-    CameraComponent1.Active:=true;
+    
+    FUseOpenCV := chkUseOpenCV.IsChecked;
+    if FUseOpenCV then
+    begin
+      // Use OpenCV camera
+      ImageControl1.Bitmap.SetSize(640, 480);
+      OpenCVCamera1.Active := True;
+      // Create a timer to poll OpenCV camera
+      if not Assigned(FOpenCVTimer) then
+      begin
+        FOpenCVTimer := TTimer.Create(Self);
+        FOpenCVTimer.Interval := 33; // ~30 FPS
+        FOpenCVTimer.OnTimer := LoadTimerTimer;
+      end;
+      FOpenCVTimer.Enabled := True;
+      memoOutput.Lines.Add('OpenCV camera started.');
+    end
+    else
+    begin
+      // Use standard TCameraComponent
+      var CaptureSetting:=CameraComponent1.CaptureSetting;
+      CaptureSetting.Width:=640;
+      CaptureSetting.Height:=480;
+      CameraComponent1.SetCaptureSetting(CaptureSetting);
+      ImageControl1.Bitmap.SetSize(CameraComponent1.CaptureSetting.Width,CameraComponent1.CaptureSetting.Height);
+      CameraComponent1.Active:=true;
+      memoOutput.Lines.Add('TCameraComponent started.');
+    end;
 
   except
     on E: Exception do
@@ -419,6 +458,96 @@ begin
   // Display Python output
   if Data <> '' then
     Memo1.Lines.Add(Data);
+end;
+
+procedure TfrmMain.chkUseOpenCVChange(Sender: TObject);
+begin
+  if FScriptLoaded then
+  begin
+    memoOutput.Lines.Add('Switching camera source...');
+    SwitchCamera;
+  end;
+end;
+
+procedure TfrmMain.SwitchCamera;
+begin
+  // Stop current camera
+  if CameraComponent1.Active then
+    CameraComponent1.Active := False;
+  if OpenCVCamera1.Active then
+    OpenCVCamera1.Active := False;
+  if Assigned(FOpenCVTimer) then
+    FOpenCVTimer.Enabled := False;
+
+  FUseOpenCV := chkUseOpenCV.IsChecked;
+  
+  if FUseOpenCV then
+  begin
+    // Switch to OpenCV camera
+    try
+      OpenCVCamera1.Active := True;
+      if not Assigned(FOpenCVTimer) then
+      begin
+        FOpenCVTimer := TTimer.Create(Self);
+        FOpenCVTimer.Interval := 33; // ~30 FPS
+        FOpenCVTimer.OnTimer := LoadTimerTimer;
+      end;
+      FOpenCVTimer.Enabled := True;
+      memoOutput.Lines.Add('Switched to OpenCV camera.');
+    except
+      on E: Exception do
+      begin
+        memoOutput.Lines.Add('Error starting OpenCV camera: ' + E.Message);
+        chkUseOpenCV.IsChecked := False;
+      end;
+    end;
+  end
+  else
+  begin
+    // Switch to TCameraComponent
+    try
+      CameraComponent1.Active := True;
+      memoOutput.Lines.Add('Switched to TCameraComponent.');
+    except
+      on E: Exception do
+      begin
+        memoOutput.Lines.Add('Error starting TCameraComponent: ' + E.Message);
+        chkUseOpenCV.IsChecked := True;
+      end;
+    end;
+  end;
+end;
+
+procedure TfrmMain.LoadTimerTimer(Sender: TObject);
+begin
+  // This timer is used for OpenCV camera polling
+  if FUseOpenCV and OpenCVCamera1.Active then
+  begin
+    ProcessOpenCVFrame;
+  end;
+end;
+
+procedure TfrmMain.ProcessOpenCVFrame;
+var
+  Frame: TBitmap;
+begin
+  if not FScriptLoaded then
+    Exit;
+
+  try
+    Frame := OpenCVCamera1.GetFrameAsBitmap;
+    if Assigned(Frame) then
+    try
+      InterimBitmap.Assign(Frame);
+      ProcessFrameWithMediaPipe;
+      ImageControl1.Bitmap.Assign(InterimBitmap);
+    finally
+      Frame.Free;
+    end;
+  except
+    on E: Exception do
+      memoOutput.Lines.Add('Error processing OpenCV frame: ' + E.Message);
+  end;
 end;
 
 end.
