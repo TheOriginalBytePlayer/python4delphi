@@ -17,6 +17,12 @@
 *.lib
 *.pyd
 
+# Python cache   #
+###################
+__pycache__/
+*.pyc
+*.pyo
+
 # Generated source #
 ###################
 *.hpp
