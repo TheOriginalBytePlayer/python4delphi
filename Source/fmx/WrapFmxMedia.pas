@@ -400,12 +400,14 @@ var
   PyFrame: PPyObject;
   PyCvtColorMethod: PPyObject;
   PyArgs: PPyObject;
-  PyBGRFrame: PPyObject;
+  PyRGBFrame: PPyObject;
   PyShape: PPyObject;
-  PyData: PPyObject;
+  PyTobytesMethod: PPyObject;
+  PyBytesData: PPyObject;
   PyColorConst: PPyObject;
   Height, Width: Integer;
-  DataPtr: Pointer;
+  DataPtr: PByte;
+  DataSize: NativeInt;
   BitmapData: TBitmapData;
   y: Integer;
 begin
@@ -428,13 +430,13 @@ begin
         PyColorConst := PyObject_GetAttrString(FPyCv2Module, 'COLOR_BGR2RGB');
         PyTuple_SetItem(PyArgs, 1, PyColorConst);
         
-        PyBGRFrame := PyObject_CallObject(PyCvtColorMethod, PyArgs);
+        PyRGBFrame := PyObject_CallObject(PyCvtColorMethod, PyArgs);
         Py_DECREF(PyArgs);
         
-        if Assigned(PyBGRFrame) then
+        if Assigned(PyRGBFrame) then
         try
           // Get frame dimensions
-          PyShape := PyObject_GetAttrString(PyBGRFrame, 'shape');
+          PyShape := PyObject_GetAttrString(PyRGBFrame, 'shape');
           if Assigned(PyShape) and PyTuple_Check(PyShape) and (PyTuple_Size(PyShape) >= 2) then
           begin
             Height := PyLong_AsLong(PyTuple_GetItem(PyShape, 0));
@@ -444,33 +446,40 @@ begin
             // Create bitmap
             Result := TBitmap.Create(Width, Height);
             
-            // Get numpy array data
-            PyData := PyObject_GetAttrString(PyBGRFrame, 'data');
-            if Assigned(PyData) then
+            // Get numpy array data as bytes
+            PyTobytesMethod := PyObject_GetAttrString(PyRGBFrame, 'tobytes');
+            if Assigned(PyTobytesMethod) then
             try
-              // Get pointer to data
-              DataPtr := PyBytes_AsString(PyData);
-              
-              if Assigned(DataPtr) and Result.Map(TMapAccess.Write, BitmapData) then
+              PyBytesData := PyObject_CallObject(PyTobytesMethod, nil);
+              if Assigned(PyBytesData) then
               try
-                // Copy data to bitmap
-                for y := 0 to Height - 1 do
-                begin
-                  Move(
-                    Pointer(NativeInt(DataPtr) + y * Width * 3)^,
-                    Pointer(NativeInt(BitmapData.Data) + y * BitmapData.Pitch)^,
-                    Width * 3
-                  );
+                DataPtr := PByte(PyBytes_AsString(PyBytesData));
+                DataSize := PyBytes_Size(PyBytesData);
+                
+                if Assigned(DataPtr) and (DataSize >= Width * Height * 3) and 
+                   Result.Map(TMapAccess.Write, BitmapData) then
+                try
+                  // Copy data to bitmap
+                  for y := 0 to Height - 1 do
+                  begin
+                    Move(
+                      DataPtr[y * Width * 3],
+                      Pointer(NativeInt(BitmapData.Data) + y * BitmapData.Pitch)^,
+                      Width * 3
+                    );
+                  end;
+                finally
+                  Result.Unmap(BitmapData);
                 end;
               finally
-                Result.Unmap(BitmapData);
+                Py_DECREF(PyBytesData);
               end;
             finally
-              Py_DECREF(PyData);
+              Py_DECREF(PyTobytesMethod);
             end;
           end;
         finally
-          Py_DECREF(PyBGRFrame);
+          Py_DECREF(PyRGBFrame);
         end;
       finally
         Py_DECREF(PyCvtColorMethod);
