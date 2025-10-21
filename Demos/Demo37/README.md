@@ -70,11 +70,33 @@ The Delphi code uses VarPyth to access this nested structure:
 
 ## Files
 
-- `MediaPipeDemo.dpr` - Delphi project file
-- `MainForm.pas` - Main form implementation
+- `MediaPipeDemo.dpr` - FireMonkey GUI demo project file
+- `SimpleMediaPipeDemo.dpr` - Simple console demo (minimal code example)
+- `MainForm.pas` - Main form implementation for GUI demo
 - `MainForm.fmx` - FireMonkey form layout
 - `mediapipe_hands.py` - Python script with MediaPipe hand tracking
+- `example_usage.py` - Standalone Python example showing usage
+- `test_mediapipe.py` - Test script to verify MediaPipe installation
 - `README.md` - This file
+
+## Getting Started
+
+### Option 1: Simple Console Demo (Recommended for testing)
+
+The `SimpleMediaPipeDemo.dpr` provides the minimal code to call the Python function:
+
+1. Make sure `mediapipe_hands.py` is in the same directory
+2. Compile and run `SimpleMediaPipeDemo.dpr`
+3. It will create a test frame and process it
+
+### Option 2: GUI Demo with Image Loading
+
+The `MediaPipeDemo.dpr` provides a full GUI to load and process images:
+
+1. Compile and run the FireMonkey application
+2. Click "Load Python Script" 
+3. Click "Load Image" to select an image
+4. Click "Process Frame" to detect hands
 
 ## Notes
 
