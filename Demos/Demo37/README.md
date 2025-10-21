@@ -9,6 +9,7 @@ This demo demonstrates how to use MediaPipe hand tracking library from Python in
 - Process frames with MediaPipe to detect hand landmarks
 - Return structured data (list of dictionaries) from Python to Delphi
 - Display detected hand landmarks with coordinates
+- Switch between TCameraComponent and TOpenCVCamera for video capture
 
 ## Requirements
 
@@ -19,16 +20,22 @@ Install the required Python packages:
 pip install mediapipe numpy
 ```
 
+For OpenCV camera support, also install:
+
+```bash
+pip install opencv-python
+```
+
 ### Python Environment
 Make sure you have Python 3.7 or higher installed and configured with Python4Delphi.
 
 ## How It Works
 
-1. **Load Python Script**: Click this button to initialize the MediaPipe library and load the Python script (`mediapipe_hands.py`)
+1. **Use OpenCV Camera**: Check this checkbox to use the TOpenCVCamera component (requires OpenCV installed in Python), or leave it unchecked to use the standard TCameraComponent
 
-2. **Load Image**: Load a test image containing hands (JPEG, PNG, BMP formats supported)
-
-3. **Process Frame**: Process the loaded image with MediaPipe hand detection
+2. **Load Python Script**: Click this button to initialize the MediaPipe library and load the Python script (`mediapipe_hands.py`)
+   - The camera will automatically start capturing frames based on the selected camera type
+   - Frames are processed in real-time with MediaPipe hand detection
    - The image is converted to bytes
    - Passed to Python using PyBytes
    - MediaPipe processes the frame
@@ -97,6 +104,28 @@ The `MediaPipeDemo.dpr` provides a full GUI to load and process images:
 2. Click "Load Python Script" 
 3. Click "Load Image" to select an image
 4. Click "Process Frame" to detect hands
+
+## Camera Options
+
+The demo supports two camera components:
+
+### TCameraComponent (Default)
+- Uses FireMonkey's built-in camera component
+- Platform-native camera access (iOS, Android, Windows)
+- Automatically handles different camera formats
+- No additional Python dependencies required
+
+### TOpenCVCamera (Optional)
+- Uses OpenCV's VideoCapture for camera access
+- Requires `opencv-python` package installed
+- Cross-platform camera support through OpenCV
+- May provide better control over camera settings
+- Useful for testing on desktop platforms
+
+To switch between cameras:
+1. Check or uncheck the "Use OpenCV Camera" checkbox
+2. The switch can be done before or after loading the Python script
+3. If the script is already loaded, the camera will automatically restart with the selected type
 
 ## Notes
 

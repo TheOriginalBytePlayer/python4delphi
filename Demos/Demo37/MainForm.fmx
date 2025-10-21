@@ -34,25 +34,15 @@ object frmMain: TfrmMain
       Text = 'Load Python Script'
       OnClick = btnLoadScriptClick
     end
-    object btnLoadImage: TButton
+    object chkUseOpenCV: TCheckBox
       Position.X = 161.000000000000000000
-      Position.Y = 8.000000000000000000
-      Size.Width = 145.000000000000000000
-      Size.Height = 49.000000000000000000
+      Position.Y = 16.000000000000000000
+      Size.Width = 150.000000000000000000
+      Size.Height = 33.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 1
-      Text = 'Load Image'
-      OnClick = btnLoadImageClick
-    end
-    object btnProcessFrame: TButton
-      Position.X = 314.000000000000000000
-      Position.Y = 8.000000000000000000
-      Size.Width = 145.000000000000000000
-      Size.Height = 49.000000000000000000
-      Size.PlatformDefault = False
-      TabOrder = 2
-      Text = 'Process Frame'
-      OnClick = btnProcessFrameClick
+      Text = 'Use OpenCV Camera'
+      OnChange = chkUseOpenCVChange
     end
   end
   object Panel2: TPanel
@@ -145,5 +135,20 @@ object frmMain: TfrmMain
     Filter = 'Images|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*'
     Left = 120
     Top = 88
+  end
+  object CameraComponent1: TCameraComponent
+    OnSampleBufferReady = CameraComponent1SampleBufferReady
+    Left = 120
+    Top = 144
+  end
+  object LoadTimer: TTimer
+    Enabled = False
+    Interval = 100
+    Left = 120
+    Top = 200
+  end
+  object OpenCVCamera1: TOpenCVCamera
+    Left = 120
+    Top = 256
   end
 end
