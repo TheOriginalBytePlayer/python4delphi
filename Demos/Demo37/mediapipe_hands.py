@@ -130,12 +130,14 @@ def process_frame(frame_bytes: (bytes, bytearray, memoryview), width: int, heigh
 
             # convert to pixel coordinates when possible
             pixelCoordinatesLandmark = drawing_module._normalized_to_pixel_coordinates(nx, ny, frameWidth, frameHeight)
-            # pixelCoordinatesLandmark is either (px, py) or None
+          
+            # pixelCoordinatesLandmark is either (px, py) or None          
             if pixelCoordinatesLandmark is not None:
-                px, py = int(pixelCoordinatesLandmark[0]), int(pixelCoordinatesLandmark[1])
+                px = float(pixelCoordinatesLandmark[0])
+                py = float(pixelCoordinatesLandmark[1])
             else:
-                px = float(-1)
-                py = float(-1);
+                px = -1.0
+                py = -1.0
 
             lm_entry = {
                 'x': nx,
