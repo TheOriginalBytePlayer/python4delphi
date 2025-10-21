@@ -1,0 +1,149 @@
+object frmMain: TfrmMain
+  Left = 0
+  Top = 0
+  Caption = 'MediaPipe Hand Tracking Demo - Python4Delphi'
+  ClientHeight = 600
+  ClientWidth = 800
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  DesignerMasterStyle = 0
+  object Splitter1: TSplitter
+    Align = Right
+    Cursor = crHSplit
+    MinSize = 20.000000000000000000
+    Position.X = 496.000000000000000000
+    Size.Width = 8.000000000000000000
+    Size.Height = 600.000000000000000000
+    Size.PlatformDefault = False
+  end
+  object Panel1: TPanel
+    Align = Top
+    Position.Y = 0.000000000000000000
+    Size.Width = 496.000000000000000000
+    Size.Height = 65.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    object btnLoadScript: TButton
+      Position.X = 8.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 145.000000000000000000
+      Size.Height = 49.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      Text = 'Load Python Script'
+      OnClick = btnLoadScriptClick
+    end
+    object btnLoadImage: TButton
+      Position.X = 161.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 145.000000000000000000
+      Size.Height = 49.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+      Text = 'Load Image'
+      OnClick = btnLoadImageClick
+    end
+    object btnProcessFrame: TButton
+      Position.X = 314.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 145.000000000000000000
+      Size.Height = 49.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 2
+      Text = 'Process Frame'
+      OnClick = btnProcessFrameClick
+    end
+  end
+  object Panel2: TPanel
+    Align = Client
+    Size.Width = 496.000000000000000000
+    Size.Height = 535.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    object Label3: TLabel
+      Position.X = 8.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 480.000000000000000000
+      Size.Height = 17.000000000000000000
+      Size.PlatformDefault = False
+      Text = 'Image Preview:'
+      TabOrder = 0
+    end
+    object ImageControl1: TImageControl
+      Align = Client
+      Margins.Left = 8.000000000000000000
+      Margins.Top = 32.000000000000000000
+      Margins.Right = 8.000000000000000000
+      Margins.Bottom = 8.000000000000000000
+      Size.Width = 480.000000000000000000
+      Size.Height = 495.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+    end
+  end
+  object Memo1: TMemo
+    Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+    DataDetectorTypes = []
+    Align = Right
+    Lines.Strings = (
+      'Python Output')
+    Position.X = 504.000000000000000000
+    Position.Y = 32.000000000000000000
+    Size.Width = 296.000000000000000000
+    Size.Height = 256.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    Viewport.Width = 292.000000000000000000
+    Viewport.Height = 252.000000000000000000
+  end
+  object memoOutput: TMemo
+    Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+    DataDetectorTypes = []
+    Align = Right
+    Lines.Strings = (
+      'Output')
+    Position.X = 504.000000000000000000
+    Position.Y = 312.000000000000000000
+    Size.Width = 296.000000000000000000
+    Size.Height = 288.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 3
+    Viewport.Width = 292.000000000000000000
+    Viewport.Height = 284.000000000000000000
+  end
+  object Label1: TLabel
+    Align = Right
+    Position.X = 504.000000000000000000
+    Position.Y = 0.000000000000000000
+    Size.Width = 296.000000000000000000
+    Size.Height = 32.000000000000000000
+    Size.PlatformDefault = False
+    Text = '  Python Console:'
+    TabOrder = 4
+    object Label2: TLabel
+      Align = Top
+      Position.Y = 288.000000000000000000
+      Size.Width = 296.000000000000000000
+      Size.Height = 24.000000000000000000
+      Size.PlatformDefault = False
+      Text = '  Detection Results:'
+      TabOrder = 0
+    end
+  end
+  object PythonEngine: TPythonEngine
+    IO = PythonInputOutput
+    Left = 24
+    Top = 88
+  end
+  object PythonInputOutput: TPythonInputOutput
+    OnSendUniData = PythonInputOutputSendUniData
+    Left = 24
+    Top = 144
+  end
+  object OpenDialog1: TOpenDialog
+    Filter = 'Images|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*'
+    Left = 120
+    Top = 88
+  end
+end
