@@ -445,9 +445,10 @@ procedure TfrmMain.FormShow(Sender: TObject);
 begin
   FScriptLoaded := False;
   Memo1.Lines.Add('# MediaPipe Hand Tracking Demo');
-  Memo1.Lines.Add('# Click "Load Python Script" to initialize MediaPipe');
-  Memo1.Lines.Add('# Then click "Load Image" to load a test image');
-  Memo1.Lines.Add('# Finally click "Process Frame" to detect hands');
+  Memo1.Lines.Add('# 1. Check "Use OpenCV Camera" to use OpenCV (requires opencv-python)');
+  Memo1.Lines.Add('#    or leave unchecked to use TCameraComponent (default)');
+  Memo1.Lines.Add('# 2. Click "Load Python Script" to initialize MediaPipe');
+  Memo1.Lines.Add('# 3. Camera will start automatically and process frames in real-time');
   InterimBitmap:=TBitmap.Create(640,480);
   LoadTimer.Enabled:=true;
 end;
