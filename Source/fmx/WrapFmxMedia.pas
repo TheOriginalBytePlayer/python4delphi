@@ -18,7 +18,7 @@ unit WrapFmxMedia;
 interface
 
 uses
-  System.TypInfo, FMX.Media,
+  System.TypInfo, System.Classes, System.SysUtils, FMX.Media, FMX.Graphics,
   PythonEngine, WrapDelphi,
   WrapFmxTypes, WrapFmxControls, WrapFmxActnList, WrapFmxStdActns;
 
@@ -32,16 +32,34 @@ type
     class function GetTypeInfo: PTypeInfo; override;
   end;
 
-  TPyDelphiCameraComponent = class(TPyDelphiFmxObject)
+  TOpenCVCamera = class(TComponent)
   private
-    function GetDelphiObject: TCameraComponent;
-    procedure SetDelphiObject(const Value: TCameraComponent);
+    FPyCapture: PPyObject;
+    FPyCv2Module: PPyObject;
+    FActive: Boolean;
+    FDeviceIndex: Integer;
+    procedure SetActive(const Value: Boolean);
+    procedure SetDeviceIndex(const Value: Integer);
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    function CaptureFrame: PPyObject;
+    function GetFrameAsBitmap: TBitmap;
+  published
+    property Active: Boolean read FActive write SetActive;
+    property DeviceIndex: Integer read FDeviceIndex write SetDeviceIndex default 0;
+  end;
+
+  TPyDelphiOpenCVCamera = class(TPyDelphiComponent)
+  private
+    function GetDelphiObject: TOpenCVCamera;
+    procedure SetDelphiObject(const Value: TOpenCVCamera);
   public
     class function DelphiObjectClass: TClass; override;
     class procedure RegisterGetSets(PythonType: TPythonType); override;
     class procedure RegisterMethods(PythonType: TPythonType); override;
   public
-    property DelphiObject: TCameraComponent read GetDelphiObject
+    property DelphiObject: TOpenCVCamera read GetDelphiObject
       write SetDelphiObject;
   end;
 
@@ -194,7 +212,7 @@ procedure TFMXMediaRegistration.RegisterWrappers(APyDelphiWrapper
 begin
   APyDelphiWrapper.EventHandlers.RegisterHandler(TSampleBufferReadyEventHandler);
 
-  APyDelphiWrapper.RegisterDelphiWrapper(TPyDelphiCameraComponent);
+  APyDelphiWrapper.RegisterDelphiWrapper(TPyDelphiOpenCVCamera);
   APyDelphiWrapper.RegisterDelphiWrapper(TPyDelphiCustomMediaCodec);
   APyDelphiWrapper.RegisterDelphiWrapper(TPyDelphiMediaPlayerControl);
   APyDelphiWrapper.RegisterDelphiWrapper(TPyDelphiMediaPlayer);
@@ -250,30 +268,259 @@ begin
   Result := System.TypeInfo(TSampleBufferReadyEvent);
 end;
 
-{ TPyDelphiCameraComponent }
+{ TOpenCVCamera }
 
-class function TPyDelphiCameraComponent.DelphiObjectClass: TClass;
+constructor TOpenCVCamera.Create(AOwner: TComponent);
 begin
-  Result := TCameraComponent;
+  inherited Create(AOwner);
+  FPyCapture := nil;
+  FPyCv2Module := nil;
+  FActive := False;
+  FDeviceIndex := 0;
 end;
 
-class procedure TPyDelphiCameraComponent.RegisterGetSets
+destructor TOpenCVCamera.Destroy;
+begin
+  Active := False;
+  inherited;
+end;
+
+procedure TOpenCVCamera.SetActive(const Value: Boolean);
+var
+  PyCaptureMethod: PPyObject;
+  PyArgs: PPyObject;
+  PyReleaseMethod: PPyObject;
+  PyResult: PPyObject;
+begin
+  if FActive = Value then Exit;
+  
+  if Value then
+  begin
+    // Import cv2 module
+    with GetPythonEngine do
+    begin
+      FPyCv2Module := PyImport_ImportModule('cv2');
+      if not Assigned(FPyCv2Module) then
+      begin
+        PyErr_Print;
+        raise Exception.Create('Failed to import cv2 module. Make sure OpenCV is installed.');
+      end;
+      
+      // Create VideoCapture object
+      PyCaptureMethod := PyObject_GetAttrString(FPyCv2Module, 'VideoCapture');
+      if Assigned(PyCaptureMethod) then
+      try
+        PyArgs := PyTuple_New(1);
+        PyTuple_SetItem(PyArgs, 0, PyLong_FromLong(FDeviceIndex));
+        FPyCapture := PyObject_CallObject(PyCaptureMethod, PyArgs);
+        Py_DECREF(PyArgs);
+        
+        if not Assigned(FPyCapture) then
+        begin
+          PyErr_Print;
+          raise Exception.Create('Failed to create VideoCapture object.');
+        end;
+      finally
+        Py_DECREF(PyCaptureMethod);
+      end;
+    end;
+    FActive := True;
+  end
+  else
+  begin
+    // Release VideoCapture
+    if Assigned(FPyCapture) then
+    begin
+      with GetPythonEngine do
+      begin
+        PyReleaseMethod := PyObject_GetAttrString(FPyCapture, 'release');
+        if Assigned(PyReleaseMethod) then
+        try
+          PyResult := PyObject_CallObject(PyReleaseMethod, nil);
+          Py_XDECREF(PyResult);
+        finally
+          Py_DECREF(PyReleaseMethod);
+        end;
+        Py_DECREF(FPyCapture);
+      end;
+      FPyCapture := nil;
+    end;
+    
+    if Assigned(FPyCv2Module) then
+    begin
+      GetPythonEngine.Py_DECREF(FPyCv2Module);
+      FPyCv2Module := nil;
+    end;
+    FActive := False;
+  end;
+end;
+
+procedure TOpenCVCamera.SetDeviceIndex(const Value: Integer);
+begin
+  if FActive then
+    raise Exception.Create('Cannot change device index while camera is active');
+  FDeviceIndex := Value;
+end;
+
+function TOpenCVCamera.CaptureFrame: PPyObject;
+var
+  PyReadMethod: PPyObject;
+  PyResult: PPyObject;
+begin
+  Result := nil;
+  if not FActive then Exit;
+  
+  with GetPythonEngine do
+  begin
+    PyReadMethod := PyObject_GetAttrString(FPyCapture, 'read');
+    if Assigned(PyReadMethod) then
+    try
+      PyResult := PyObject_CallObject(PyReadMethod, nil);
+      if Assigned(PyResult) then
+      begin
+        // PyResult is a tuple (ret, frame)
+        // We return the frame (second element)
+        if PyTuple_Check(PyResult) and (PyTuple_Size(PyResult) = 2) then
+        begin
+          Result := PyTuple_GetItem(PyResult, 1);
+          Py_INCREF(Result); // Increment reference count
+        end;
+        Py_DECREF(PyResult);
+      end
+      else
+        PyErr_Print;
+    finally
+      Py_DECREF(PyReadMethod);
+    end;
+  end;
+end;
+
+function TOpenCVCamera.GetFrameAsBitmap: TBitmap;
+var
+  PyFrame: PPyObject;
+  PyCvtColorMethod: PPyObject;
+  PyArgs: PPyObject;
+  PyBGRFrame: PPyObject;
+  PyShape: PPyObject;
+  PyData: PPyObject;
+  PyColorConst: PPyObject;
+  Height, Width: Integer;
+  DataPtr: Pointer;
+  BitmapData: TBitmapData;
+  y: Integer;
+begin
+  Result := nil;
+  PyFrame := CaptureFrame;
+  if not Assigned(PyFrame) then Exit;
+  
+  try
+    with GetPythonEngine do
+    begin
+      // Convert frame from BGR to RGB
+      PyCvtColorMethod := PyObject_GetAttrString(FPyCv2Module, 'cvtColor');
+      if Assigned(PyCvtColorMethod) then
+      try
+        PyArgs := PyTuple_New(2);
+        Py_INCREF(PyFrame);
+        PyTuple_SetItem(PyArgs, 0, PyFrame);
+        
+        // Get COLOR_BGR2RGB constant
+        PyColorConst := PyObject_GetAttrString(FPyCv2Module, 'COLOR_BGR2RGB');
+        PyTuple_SetItem(PyArgs, 1, PyColorConst);
+        
+        PyBGRFrame := PyObject_CallObject(PyCvtColorMethod, PyArgs);
+        Py_DECREF(PyArgs);
+        
+        if Assigned(PyBGRFrame) then
+        try
+          // Get frame dimensions
+          PyShape := PyObject_GetAttrString(PyBGRFrame, 'shape');
+          if Assigned(PyShape) and PyTuple_Check(PyShape) and (PyTuple_Size(PyShape) >= 2) then
+          begin
+            Height := PyLong_AsLong(PyTuple_GetItem(PyShape, 0));
+            Width := PyLong_AsLong(PyTuple_GetItem(PyShape, 1));
+            Py_DECREF(PyShape);
+            
+            // Create bitmap
+            Result := TBitmap.Create(Width, Height);
+            
+            // Get numpy array data
+            PyData := PyObject_GetAttrString(PyBGRFrame, 'data');
+            if Assigned(PyData) then
+            try
+              // Get pointer to data
+              DataPtr := PyBytes_AsString(PyData);
+              
+              if Assigned(DataPtr) and Result.Map(TMapAccess.Write, BitmapData) then
+              try
+                // Copy data to bitmap
+                for y := 0 to Height - 1 do
+                begin
+                  Move(
+                    Pointer(NativeInt(DataPtr) + y * Width * 3)^,
+                    Pointer(NativeInt(BitmapData.Data) + y * BitmapData.Pitch)^,
+                    Width * 3
+                  );
+                end;
+              finally
+                Result.Unmap(BitmapData);
+              end;
+            finally
+              Py_DECREF(PyData);
+            end;
+          end;
+        finally
+          Py_DECREF(PyBGRFrame);
+        end;
+      finally
+        Py_DECREF(PyCvtColorMethod);
+      end;
+    end;
+  finally
+    GetPythonEngine.Py_DECREF(PyFrame);
+  end;
+end;
+
+{ TPyDelphiOpenCVCamera }
+
+class function TPyDelphiOpenCVCamera.DelphiObjectClass: TClass;
+begin
+  Result := TOpenCVCamera;
+end;
+
+class procedure TPyDelphiOpenCVCamera.RegisterGetSets
   (PythonType: TPythonType);
 begin
+  inherited;
+  with PythonType do
+  begin
+    AddGetSet('Active', @TPyDelphiObject.GetAttr_Prop, @TPyDelphiObject.SetAttr_Prop,
+      'Returns/Sets whether the camera is active', nil);
+    AddGetSet('DeviceIndex', @TPyDelphiObject.GetAttr_Prop, @TPyDelphiObject.SetAttr_Prop,
+      'Returns/Sets the camera device index', nil);
+  end;
 end;
 
-class procedure TPyDelphiCameraComponent.RegisterMethods
+class procedure TPyDelphiOpenCVCamera.RegisterMethods
   (PythonType: TPythonType);
 begin
+  inherited;
+  with PythonType do
+  begin
+    AddMethod('CaptureFrame', @TPyDelphiObject.Wrap_method,
+      'Captures a frame from the camera and returns it as a numpy array');
+    AddMethod('GetFrameAsBitmap', @TPyDelphiObject.Wrap_method,
+      'Captures a frame and returns it as a Delphi TBitmap object');
+  end;
 end;
 
-function TPyDelphiCameraComponent.GetDelphiObject: TCameraComponent;
+function TPyDelphiOpenCVCamera.GetDelphiObject: TOpenCVCamera;
 begin
-  Result := TCameraComponent(inherited DelphiObject);
+  Result := TOpenCVCamera(inherited DelphiObject);
 end;
 
-procedure TPyDelphiCameraComponent.SetDelphiObject
-  (const Value: TCameraComponent);
+procedure TPyDelphiOpenCVCamera.SetDelphiObject
+  (const Value: TOpenCVCamera);
 begin
   inherited DelphiObject := Value;
 end;
