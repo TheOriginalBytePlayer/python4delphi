@@ -232,6 +232,7 @@ begin
 
   if Value then
   begin
+    FPyCapture:=Nil;
     // Import cv2 and create VideoCapture
     with GetPythonEngine do
     begin
@@ -241,7 +242,6 @@ begin
         PyErr_Print;
         raise Exception.Create('Failed to import cv2 module. Make sure OpenCV is installed in Python.');
       end;
-
       PyCaptureMethod := PyObject_GetAttrString(FPyCv2Module, 'VideoCapture');
       if Assigned(PyCaptureMethod) then
       try
@@ -249,14 +249,14 @@ begin
         PyTuple_SetItem(PyArgs, 0, PyLong_FromLong(FDeviceIndex));
         FPyCapture := PyObject_CallObject(PyCaptureMethod, PyArgs);
         Py_DECREF(PyArgs);
-
-        if not Assigned(FPyCapture) then
-        begin
-          PyErr_Print;
-          raise Exception.Create('Failed to create VideoCapture object.');
-        end;
       finally
         Py_DECREF(PyCaptureMethod);
+      end;
+      //if not fully initialized then fail!      
+      if not assigned(PyCaptureMethod) or not Assigned(FPyCapture) then
+      begin
+        PyErr_Print;
+        raise Exception.Create('Failed to create VideoCapture object.');
       end;
     end;
     FActive := True;
@@ -785,5 +785,6 @@ end;
 initialization
 
 RegisteredUnits.Add(TFMXMediaRegistration.Create());
+
 
 end.
